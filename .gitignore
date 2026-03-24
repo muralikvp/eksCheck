@@ -18,3 +18,4 @@ appsettings.Development.json
 # AWS
 *.pem
 *.key
+*.zip
