@@ -1,0 +1,42 @@
+
+
+{
+  "family": "ecs-dotnet-app",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::814129119746:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "ecs-dotnet-app",
+      "image": "814129119746.dkr.ecr.ap-south-1.amazonaws.com/ecs-dotnet-app:v2",
+      "portMappings": [
+        { "containerPort": 5000, "protocol": "tcp" }
+      ],
+      "essential": true,
+      "environment": [
+        { "name": "ASPNETCORE_ENVIRONMENT", "value": "Production" },
+        { "name": "APP_VERSION", "value": "v1" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ecs-dotnet-app",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:5000/health || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      }
+    }
+  ]
+}

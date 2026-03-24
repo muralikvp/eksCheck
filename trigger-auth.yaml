@@ -1,0 +1,9 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-aws-credentials
+  namespace: default
+spec:
+  podIdentity:
+    provider: aws
+    identityId: arn:aws:iam::814129119746:role/eksctl-my-eks-cluster-addon-iamserviceaccount-Role1-PxQLG7tP6AGq

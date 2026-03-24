@@ -1,0 +1,20 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Environment
+.env
+appsettings.Development.json
+
+# Docker
+.dockerignore
+
+# Migrations snapshots (optional — keep migrations but ignore local DB)
+*.db
+
+# AWS
+*.pem
+*.key

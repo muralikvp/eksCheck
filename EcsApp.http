@@ -1,0 +1,6 @@
+@EcsApp_HostAddress = http://localhost:5182
+
+GET {{EcsApp_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

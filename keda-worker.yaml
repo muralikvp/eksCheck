@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sqs-worker
+  namespace: default
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: sqs-worker
+  template:
+    metadata:
+      labels:
+        app: sqs-worker
+    spec:
+      containers:
+      - name: worker
+        image: 814129119746.dkr.ecr.ap-south-1.amazonaws.com/ecs-dotnet-app:v2
+        env:
+        - name: ASPNETCORE_URLS
+          value: "http://+:5000"
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
