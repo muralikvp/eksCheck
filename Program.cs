@@ -28,7 +28,26 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
+    var retries = 10;
+    while (retries > 0)
+    {
+        try
+        {
+            logger.LogInformation("Attempting DB migration...");
+            db.Database.Migrate();
+            logger.LogInformation("DB migration successful");
+            break;
+        }
+        catch (Exception ex)
+        {
+            retries--;
+            logger.LogWarning("DB not ready. Retrying in 10s... ({Retries} attempts left). Error: {Error}", 
+                retries, ex.Message);
+            Thread.Sleep(10000);
+        }
+    }
 }
 
 // ─── Existing endpoints ───────────────────────────────────────────
