@@ -1,16 +1,26 @@
 using Microsoft.EntityFrameworkCore;
+using Amazon.SQS;
+using Amazon.SQS.Model;
 using EcsApp.Data;
 using EcsApp.Models;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Read connection string from environment variable
+// Connection string from env var
 var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
-// Register EF Core with SQL Server
+// SQS queue URL from env var
+var sqsQueueUrl = Environment.GetEnvironmentVariable("SQS_QUEUE_URL") ?? "";
+
+// Register EF Core
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
+
+// Register SQS client
+builder.Services.AddAWSService<IAmazonSQS>();
+builder.Services.AddHostedService<EcsApp.Workers.OrderWorker>();
 
 var app = builder.Build();
 
@@ -21,12 +31,21 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-// Existing endpoints
-app.MapGet("/", () => "Hello from .NET Core on EKS with RDS! Pipeline v3 works!");
+// ─── Existing endpoints ───────────────────────────────────────────
+
+app.MapGet("/", () => "Hello from .NET Core on EKS with RDS!");
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
-// New Product endpoints
+app.MapGet("/stress", () =>
+{
+    var result = 0;
+    for (int i = 0; i < 1000000; i++) result += i;
+    return Results.Ok(new { result });
+});
+
+// ─── Product endpoints ────────────────────────────────────────────
+
 app.MapGet("/products", async (AppDbContext db) =>
     await db.Products.ToListAsync());
 
@@ -43,4 +62,58 @@ app.MapGet("/products/{id}", async (AppDbContext db, int id) =>
     return product is null ? Results.NotFound() : Results.Ok(product);
 });
 
+// ─── Order endpoints ──────────────────────────────────────────────
+
+// POST /orders/checkout — reduce stock + send to SQS
+app.MapPost("/orders/checkout", async (
+    AppDbContext db,
+    IAmazonSQS sqs,
+    CheckoutRequest request) =>
+{
+    // Find product
+    var product = await db.Products.FindAsync(request.ProductId);
+    if (product is null)
+        return Results.NotFound(new { error = "Product not found" });
+
+    // Check stock
+    if (product.Stock < request.Quantity)
+        return Results.BadRequest(new { error = "Insufficient stock" });
+
+    // Reduce stock
+    product.Stock -= request.Quantity;
+    await db.SaveChangesAsync();
+
+    // Build order message
+    var orderMessage = new
+    {
+        ProductId   = product.Id,
+        ProductName = product.Name,
+        Quantity    = request.Quantity,
+        TotalPrice  = product.Price * request.Quantity,
+        CreatedAt   = DateTime.UtcNow
+    };
+
+    // Send to SQS
+    await sqs.SendMessageAsync(new SendMessageRequest
+    {
+        QueueUrl    = sqsQueueUrl,
+        MessageBody = JsonSerializer.Serialize(orderMessage)
+    });
+
+    return Results.Ok(new
+    {
+        message     = "Order placed successfully",
+        productName = product.Name,
+        quantity    = request.Quantity,
+        totalPrice  = orderMessage.TotalPrice
+    });
+});
+
+// GET /orders — read all orders from RDS
+app.MapGet("/orders", async (AppDbContext db) =>
+    await db.Orders.OrderByDescending(o => o.CreatedAt).ToListAsync());
+
 app.Run();
+
+// ─── Request model ────────────────────────────────────────────────
+record CheckoutRequest(int ProductId, int Quantity);
