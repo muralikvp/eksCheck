@@ -22,7 +22,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Existing endpoints
-app.MapGet("/", () => "Hello from .NET Core on EKS with RDS!");
+app.MapGet("/", () => "Hello from .NET Core on EKS with RDS! Pipeline v2 works!");
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
