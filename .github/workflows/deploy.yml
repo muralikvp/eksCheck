@@ -48,12 +48,54 @@ jobs:
       run: |
         kubectl create secret generic rds-secret \
           --from-literal=connection-string='${{ secrets.DB_CONNECTION_STRING }}' \
+          --from-literal=sqs-queue-url='${{ secrets.SQS_QUEUE_URL }}' \
           --dry-run=client -o yaml | kubectl apply -f -
 
     - name: Deploy to EKS
       run: |
-        kubectl set image deployment/dotnet-api \
-          dotnet-api=${{ env.IMAGE }}
+        kubectl apply -f - <<EOF
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: dotnet-api
+          namespace: default
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: dotnet-api
+          template:
+            metadata:
+              labels:
+                app: dotnet-api
+            spec:
+              serviceAccountName: dotnet-app-sa
+              containers:
+              - name: dotnet-api
+                image: ${{ env.IMAGE }}
+                ports:
+                - containerPort: 8080
+                env:
+                - name: ASPNETCORE_URLS
+                  value: "http://+:8080"
+                - name: DB_CONNECTION_STRING
+                  valueFrom:
+                    secretKeyRef:
+                      name: rds-secret
+                      key: connection-string
+                - name: SQS_QUEUE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: rds-secret
+                      key: sqs-queue-url
+                resources:
+                  requests:
+                    cpu: "250m"
+                    memory: "256Mi"
+                  limits:
+                    cpu: "500m"
+                    memory: "512Mi"
+        EOF
 
     - name: Verify rollout
       run: |
