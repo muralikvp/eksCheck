@@ -76,3 +76,6 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 >>>>>>> fc08ce8ec0e135f34bc12bd157e8121621269cef
+aws-auth-backup.yaml
+aws-auth-updated.yaml
+github-actions-eks-policy.json
