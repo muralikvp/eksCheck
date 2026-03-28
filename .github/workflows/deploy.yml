@@ -1,20 +1,16 @@
 name: Build and Deploy to EKS
-
 on:
   push:
     branches:
       - main
-
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: ecs-dotnet-app
-  EKS_CLUSTER: my-eks-cluster
+  EKS_CLUSTER: my-eks-cluster-tf
   IMAGE_TAG: ${{ github.sha }}
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -46,7 +42,7 @@ jobs:
 
     - name: Create or update K8s secret
       run: |
-        kubectl create secret generic rds-secret \
+        kubectl create secret generic app-secret \
           --from-literal=connection-string='${{ secrets.DB_CONNECTION_STRING }}' \
           --from-literal=sqs-queue-url='${{ secrets.SQS_QUEUE_URL }}' \
           --dry-run=client -o yaml | kubectl apply -f -
@@ -57,36 +53,35 @@ jobs:
         apiVersion: apps/v1
         kind: Deployment
         metadata:
-          name: dotnet-api
+          name: ecs-dotnet-app
           namespace: default
         spec:
-          replicas: 1
+          replicas: 2
           selector:
             matchLabels:
-              app: dotnet-api
+              app: ecs-dotnet-app
           template:
             metadata:
               labels:
-                app: dotnet-api
+                app: ecs-dotnet-app
             spec:
-              serviceAccountName: dotnet-app-sa
               containers:
-              - name: dotnet-api
+              - name: ecs-dotnet-app
                 image: ${{ env.IMAGE }}
                 ports:
-                - containerPort: 8080
+                - containerPort: 5000
                 env:
                 - name: ASPNETCORE_URLS
-                  value: "http://+:8080"
+                  value: "http://+:5000"
                 - name: DB_CONNECTION_STRING
                   valueFrom:
                     secretKeyRef:
-                      name: rds-secret
+                      name: app-secret
                       key: connection-string
                 - name: SQS_QUEUE_URL
                   valueFrom:
                     secretKeyRef:
-                      name: rds-secret
+                      name: app-secret
                       key: sqs-queue-url
                 resources:
                   requests:
@@ -95,8 +90,20 @@ jobs:
                   limits:
                     cpu: "500m"
                     memory: "512Mi"
+                livenessProbe:
+                  httpGet:
+                    path: /health
+                    port: 5000
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                readinessProbe:
+                  httpGet:
+                    path: /health
+                    port: 5000
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
         EOF
 
     - name: Verify rollout
       run: |
-        kubectl rollout status deployment/dotnet-api --timeout=120s
+        kubectl rollout status deployment/ecs-dotnet-app --timeout=120s
