@@ -40,16 +40,19 @@ jobs:
           --name ${{ env.EKS_CLUSTER }} \
           --region ${{ env.AWS_REGION }}
 
+    - name: Verify cluster access
+      run: kubectl get nodes
+
     - name: Create or update K8s secret
       run: |
         kubectl create secret generic app-secret \
           --from-literal=connection-string='${{ secrets.DB_CONNECTION_STRING }}' \
           --from-literal=sqs-queue-url='${{ secrets.SQS_QUEUE_URL }}' \
-          --dry-run=client -o yaml | kubectl apply -f -
+          --dry-run=client -o yaml | kubectl apply -f - --validate=false
 
     - name: Deploy to EKS
       run: |
-        kubectl apply -f - <<EOF
+        kubectl apply -f - --validate=false <<EOF
         apiVersion: apps/v1
         kind: Deployment
         metadata:
