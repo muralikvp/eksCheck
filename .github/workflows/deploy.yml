@@ -22,6 +22,9 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
+    - name: Debug AWS identity
+      run: aws sts get-caller-identity
+
     - name: Login to ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
@@ -40,6 +43,9 @@ jobs:
           --name ${{ env.EKS_CLUSTER }} \
           --region ${{ env.AWS_REGION }}
 
+    - name: Debug kubeconfig
+      run: cat ~/.kube/config
+
     - name: Verify cluster access
       run: kubectl get nodes
 
@@ -48,11 +54,11 @@ jobs:
         kubectl create secret generic app-secret \
           --from-literal=connection-string='${{ secrets.DB_CONNECTION_STRING }}' \
           --from-literal=sqs-queue-url='${{ secrets.SQS_QUEUE_URL }}' \
-          --dry-run=client -o yaml | kubectl apply -f - --validate=false
+          --dry-run=client -o yaml | kubectl apply -f -
 
     - name: Deploy to EKS
       run: |
-        kubectl apply -f - --validate=false <<EOF
+        kubectl apply -f - <<EOF
         apiVersion: apps/v1
         kind: Deployment
         metadata:
